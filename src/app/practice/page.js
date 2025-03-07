@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { wordPairs } from '../data/sample_data';
 
 // Alıştırma için nötr kelimeler
-const practiceWords = ["telefon", "bilgisayar", "çanta", "gözlük", "saat", "kalem", "defter", "bardak"];
+// const practiceWords = ["telefon", "bilgisayar", "çanta", "gözlük", "saat", "kalem", "defter", "bardak"];
 
 export default function Practice() {
   const router = useRouter();

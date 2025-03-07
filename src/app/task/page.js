@@ -6,10 +6,6 @@ import { wordPairs } from '../data/sample_data';
 import { db } from '../../../firebase';
 import { collection, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 
-// Kelime verileri
-const threatWords = ["başarısızlık", "yetersiz", "soru", "sınav", "hata", "başaramama", "zor", "kaygı"];
-const neutralWords = ["defter", "masa", "bardak", "kalem", "kitap", "sandalye", "pencere", "lamba"];
-
 export default function DotProbeTask() {
   const router = useRouter();
   const [sessionId, setSessionId] = useState('');
