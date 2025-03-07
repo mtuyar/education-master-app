@@ -113,6 +113,8 @@ export default function DotProbeTask() {
   
   // Deneme akışını yönet
   useEffect(() => {
+    let timeoutId;
+    
     if (currentTrial >= maxTrials) {
       // Görev tamamlandı, oturumu tamamlandı olarak işaretle
       const completeSession = async () => {
@@ -130,20 +132,18 @@ export default function DotProbeTask() {
       return;
     }
     
-    let timer;
-    
     if (phase === 'fixation') {
       // Yeni deneme oluştur
       setTrialData(createTrial());
       
       // 500ms sonra stimulus fazına geç
-      timer = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         setPhase('stimulus');
       }, 500);
     } 
     else if (phase === 'stimulus') {
       // 500ms sonra probe fazına geç
-      timer = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         setPhase('probe');
         // Tepki süresini ölçmeye başla
         setTrialData(prev => ({
@@ -152,25 +152,27 @@ export default function DotProbeTask() {
         }));
       }, 500);
     }
-    
-    if (phase === 'feedback') {
-      // Geri bildirim göster ve sonraki denemeye geç
-      const timer = setTimeout(() => {
+    else if (phase === 'feedback') {
+      // 1000ms sonra bir sonraki denemeye geç
+      timeoutId = setTimeout(() => {
         setCurrentTrial(prev => prev + 1);
         setPhase('fixation');
-      }, 500);
-      
-      return () => clearTimeout(timer);
+      }, 1000);
     }
-  }, [phase, currentTrial, maxTrials, createTrial, router, sessionId]);
+    
+    // Temizleme fonksiyonu
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [phase, currentTrial, maxTrials, createTrial, sessionId, router]);
   
-  // Ana sayfaya dönme işlevi
+  // Ana sayfaya dön
   const goToHomePage = () => {
     router.push('/');
   };
   
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gray-50">
       <div className="relative w-full max-w-md h-80 bg-white rounded-xl shadow-lg flex flex-col items-center justify-center">
         {phase === 'fixation' && (
           <div className="text-3xl">+</div>

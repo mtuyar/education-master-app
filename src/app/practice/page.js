@@ -73,20 +73,20 @@ export default function Practice() {
   
   // Deneme fazlarını yönet
   useEffect(() => {
-    let timer;
+    let timeoutId;
     
     if (phase === 'fixation') {
       // Yeni deneme oluştur
       setTrialData(createTrial());
       
       // 500ms sonra stimulus fazına geç
-      timer = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         setPhase('stimulus');
       }, 500);
     } 
     else if (phase === 'stimulus') {
       // 500ms sonra probe fazına geç
-      timer = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         setPhase('probe');
         // Tepki süresini ölçmeye başla
         setTrialData(prev => ({
@@ -96,8 +96,8 @@ export default function Practice() {
       }, 500);
     }
     else if (phase === 'feedback') {
-      // 1000ms sonra bir sonraki denemeye geç
-      timer = setTimeout(() => {
+      // 1000ms sonra bir sonraki denemeye geç veya tamamla
+      timeoutId = setTimeout(() => {
         if (currentTrial < maxTrials - 1) {
           setCurrentTrial(prev => prev + 1);
           setPhase('fixation');
@@ -107,8 +107,9 @@ export default function Practice() {
       }, 1000);
     }
     
+    // Temizleme fonksiyonu
     return () => {
-      if (timer) clearTimeout(timer);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [phase, currentTrial, maxTrials, createTrial]);
   
