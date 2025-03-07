@@ -61,20 +61,22 @@ export default function Admin() {
             Ana Sayfaya Dön
           </button>
         </div>
-
+        
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+            {error}
+          </div>
+        )}
+        
         {loading ? (
           <div className="flex justify-center items-center h-64">
-            <p className="text-xl">Oturumlar yükleniyor...</p>
-          </div>
-        ) : error ? (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            <p>{error}</p>
+            <p className="text-lg text-gray-600">Oturumlar yükleniyor...</p>
           </div>
         ) : (
           <>
-            <div className="bg-white shadow-md rounded-lg overflow-hidden">
-              <div className="p-4 bg-blue-600 text-white">
-                <h2 className="text-xl font-semibold">Tamamlanmış Oturumlar ({sessions.length})</h2>
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="px-6 py-4 bg-gray-100 border-b border-gray-200">
+                <h2 className="text-xl font-semibold">Tamamlanmış Oturumlar</h2>
               </div>
               
               {sessions.length === 0 ? (

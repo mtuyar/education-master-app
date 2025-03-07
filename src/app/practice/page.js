@@ -96,7 +96,7 @@ export default function Practice() {
       }, 500);
     }
     else if (phase === 'feedback') {
-      // 1000ms sonra bir sonraki denemeye geç veya bitir
+      // 1000ms sonra bir sonraki denemeye geç
       timer = setTimeout(() => {
         if (currentTrial < maxTrials - 1) {
           setCurrentTrial(prev => prev + 1);
@@ -107,7 +107,9 @@ export default function Practice() {
       }, 1000);
     }
     
-    return () => clearTimeout(timer);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [phase, currentTrial, maxTrials, createTrial]);
   
   return (

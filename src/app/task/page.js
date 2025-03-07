@@ -13,7 +13,6 @@ const neutralWords = ["defter", "masa", "bardak", "kalem", "kitap", "sandalye", 
 export default function DotProbeTask() {
   const router = useRouter();
   const [sessionId, setSessionId] = useState('');
-  const [isExperimentalGroup, setIsExperimentalGroup] = useState(false);
   
   const [currentTrial, setCurrentTrial] = useState(0);
   const [maxTrials] = useState(15); // Toplam deneme sayısı
@@ -21,7 +20,6 @@ export default function DotProbeTask() {
   const [trialData, setTrialData] = useState(null);
   const [responseTime, setResponseTime] = useState(null);
   const [responseCorrect, setResponseCorrect] = useState(null);
-  const [results, setResults] = useState([]);
   
   // Oturum bilgilerini Firebase'den al
   useEffect(() => {
@@ -31,11 +29,8 @@ export default function DotProbeTask() {
         setSessionId(storedSessionId);
         
         try {
-          const sessionDoc = await getDoc(doc(db, "sessions", storedSessionId));
-          if (sessionDoc.exists()) {
-            const sessionData = sessionDoc.data();
-            setIsExperimentalGroup(sessionData.group === 'experimental');
-          }
+          await getDoc(doc(db, "sessions", storedSessionId));
+          // Grup bilgisini kullanmak istiyorsanız burada alabilirsiniz
         } catch (error) {
           console.error("Error fetching session data: ", error);
         }
@@ -109,7 +104,6 @@ export default function DotProbeTask() {
       };
       
       saveTrialToFirebase();
-      setResults(prev => [...prev, updatedTrialData]);
       setPhase('feedback');
     };
     
@@ -131,35 +125,32 @@ export default function DotProbeTask() {
       
       completeSession();
       
-      // Sonuç sayfasına yönlendirme yerine tamamlama mesajı göster
-      setPhase('completed');
+      // Sonuç sayfasına yönlendir
+      router.push('/results');
       return;
     }
     
+    let timer;
+    
     if (phase === 'fixation') {
-      // Odak noktası gösterimi
-      const newTrial = createTrial();
-      setTrialData(newTrial);
+      // Yeni deneme oluştur
+      setTrialData(createTrial());
       
-      const timer = setTimeout(() => {
+      // 500ms sonra stimulus fazına geç
+      timer = setTimeout(() => {
         setPhase('stimulus');
       }, 500);
-      
-      return () => clearTimeout(timer);
-    }
-    
-    if (phase === 'stimulus') {
-      // Kelime çiftini göster
-      const timer = setTimeout(() => {
+    } 
+    else if (phase === 'stimulus') {
+      // 500ms sonra probe fazına geç
+      timer = setTimeout(() => {
         setPhase('probe');
-        // Probe gösterildiğinde zamanı kaydet
+        // Tepki süresini ölçmeye başla
         setTrialData(prev => ({
           ...prev,
           startTime: performance.now()
         }));
-      }, 500); // 500ms kelime gösterimi
-      
-      return () => clearTimeout(timer);
+      }, 500);
     }
     
     if (phase === 'feedback') {

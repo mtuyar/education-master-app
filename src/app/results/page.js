@@ -11,7 +11,6 @@ export default function Results() {
   const [pin, setPin] = useState('');
   const [group, setGroup] = useState('');
   const [loading, setLoading] = useState(true);
-  const [sessionId, setSessionId] = useState('');
   
   useEffect(() => {
     // Tarayıcı tarafında çalıştığından emin ol
@@ -23,8 +22,6 @@ export default function Results() {
         router.push('/');
         return;
       }
-      
-      setSessionId(storedSessionId);
       
       // Firebase'den verileri çek
       const fetchData = async () => {
@@ -107,18 +104,18 @@ export default function Results() {
     router.push('/');
   };
   
-  // Probe yönünü metin olarak göster
-  const getProbeDirectionText = (direction) => {
-    return direction === 0 ? 'Sol (←)' : 'Sağ (→)';
-  };
-  
   // Probe konumunu metin olarak göster
-  const getProbePositionText = (position, threatPosition) => {
-    if (position === threatPosition) {
+  const getProbePositionText = (probePosition, threatPosition) => {
+    if (probePosition === threatPosition) {
       return 'Tehdit';
     } else {
       return 'Nötr';
     }
+  };
+  
+  // Probe yönünü metin olarak göster
+  const getProbeDirectionText = (direction) => {
+    return direction === 0 ? 'Sol' : 'Sağ';
   };
   
   // Tehdit kelimesinin konumunu metin olarak göster

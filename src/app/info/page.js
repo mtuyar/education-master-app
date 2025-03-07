@@ -18,7 +18,7 @@ export default function Info() {
           <div className="text-center">
             <p className="font-semibold mb-2">DOTS uygulaması nedir?</p>
             <p>
-              DOTS uygulaması, "Dikkat Odak Takip Stratejisi" uygulaması anlamına gelir. 
+              DOTS uygulaması, &quot;Dikkat Odak Takip Stratejisi&quot; uygulaması anlamına gelir. 
               Psikologlar, insanların sınavlarla ilgili olumsuz düşüncelere daha az dikkat 
               ederlerse sınavlar konusunda daha rahat hissedebileceklerini düşünüyorlar. 
               DOTS, bunun doğru olup olmadığını inceleyen bir projedir.
