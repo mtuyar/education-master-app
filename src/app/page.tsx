@@ -9,7 +9,7 @@ export default function Home() {
   const [pin, setPin] = useState('');
   const router = useRouter();
   
-  const handlePinChange = (e) => {
+  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPin(e.target.value);
   };
   
