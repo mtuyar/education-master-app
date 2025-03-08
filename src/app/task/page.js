@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { wordPairs } from '../data/sample_data';
 import { db } from '../../../firebase';
-import { collection, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, getDoc, getDocs } from 'firebase/firestore';
 
 export default function DotProbeTask() {
   const router = useRouter();
@@ -16,8 +16,13 @@ export default function DotProbeTask() {
   const [trialData, setTrialData] = useState(null);
   const [responseTime, setResponseTime] = useState(null);
   const [responseCorrect, setResponseCorrect] = useState(null);
+  const [responseGiven, setResponseGiven] = useState(false); // Tepki verildi mi?
   
-  // Oturum bilgilerini Firebase'den al
+  // Mevcut ilerlemeyi kontrol etmek için state ekleyin
+  const [completedTrials, setCompletedTrials] = useState([]);
+  const [isInitializing, setIsInitializing] = useState(true);
+  
+  // Oturum bilgilerini ve mevcut ilerlemeyi kontrol eden useEffect
   useEffect(() => {
     const fetchSessionData = async () => {
       const storedSessionId = localStorage.getItem('dots_session_id');
@@ -25,10 +30,39 @@ export default function DotProbeTask() {
         setSessionId(storedSessionId);
         
         try {
-          await getDoc(doc(db, "sessions", storedSessionId));
-          // Grup bilgisini kullanmak istiyorsanız burada alabilirsiniz
+          // Oturum bilgilerini kontrol et
+          const sessionDoc = await getDoc(doc(db, "sessions", storedSessionId));
+          if (sessionDoc.exists() && sessionDoc.data().completed) {
+            // Oturum zaten tamamlanmışsa, ana sayfaya yönlendir
+            router.push('/');
+            return;
+          }
+          
+          // Mevcut ilerlemeyi kontrol et
+          const trialsSnapshot = await getDocs(collection(db, "sessions", storedSessionId, "trials"));
+          const existingTrials = [];
+          trialsSnapshot.forEach((doc) => {
+            existingTrials.push(doc.data());
+          });
+          
+          // Tamamlanan denemeleri kaydet
+          setCompletedTrials(existingTrials);
+          
+          // Eğer tamamlanan denemeler varsa, kaldığı yerden devam et
+          if (existingTrials.length > 0) {
+            setCurrentTrial(existingTrials.length);
+            // Eğer tüm denemeler tamamlanmışsa, tamamlandı fazına geç
+            if (existingTrials.length >= maxTrials) {
+              setPhase('completed');
+            } else {
+              setPhase('fixation');
+            }
+          }
+          
+          setIsInitializing(false);
         } catch (error) {
           console.error("Error fetching session data: ", error);
+          setIsInitializing(false);
         }
       } else {
         // Oturum ID yoksa ana sayfaya yönlendir
@@ -37,7 +71,7 @@ export default function DotProbeTask() {
     };
     
     fetchSessionData();
-  }, [router]);
+  }, [router, maxTrials]);
   
   // Yeni deneme oluştur
   const createTrial = useCallback(() => {
@@ -69,66 +103,91 @@ export default function DotProbeTask() {
     };
   }, [currentTrial]);
   
-  // Tuş basımlarını dinle
+  // Deneme sonuçlarını kaydetme fonksiyonu
+  const saveTrialResult = async (trialResult) => {
+    try {
+      // Deneme zaten kaydedilmiş mi kontrol et
+      const existingTrial = completedTrials.find(trial => trial.trialNumber === trialResult.trialNumber);
+      if (existingTrial) {
+        console.log(`Trial ${trialResult.trialNumber} already saved, skipping...`);
+        return;
+      }
+      
+      // Yeni deneme sonucunu kaydet
+      await addDoc(collection(db, "sessions", sessionId, "trials"), trialResult);
+      
+      // Tamamlanan denemeleri güncelle
+      setCompletedTrials(prev => [...prev, trialResult]);
+    } catch (error) {
+      console.error("Error saving trial result: ", error);
+    }
+  };
+  
+  // Klavye olaylarını dinleyen useEffect
   useEffect(() => {
-    const handleKeyPress = (e) => {
-      if (phase !== 'probe') return;
-      
-      const key = e.key.toLowerCase();
-      const correctKey = trialData.probeDirection === 0 ? 'z' : 'm';
-      
-      const endTime = performance.now();
-      const rt = endTime - trialData.startTime;
-      
-      setResponseTime(rt);
-      setResponseCorrect(key === correctKey);
-      
-      // Sonuçları kaydet
-      const updatedTrialData = {
-        ...trialData,
-        responseTime: rt,
-        correct: key === correctKey
-      };
-      
-      // Firebase'e deneme sonucunu kaydet
-      const saveTrialToFirebase = async () => {
-        try {
-          await addDoc(collection(db, "sessions", sessionId, "trials"), updatedTrialData);
-        } catch (error) {
-          console.error("Error saving trial: ", error);
+    const handleKeyDown = (e) => {
+      // Z tuşu (sol) veya M tuşu (sağ) için tepki ver
+      if (phase === 'probe' && !responseGiven) {
+        if (e.keyCode === 90 || e.keyCode === 77) { // Z: 90, M: 77
+          const endTime = performance.now();
+          const responseTime = endTime - trialData.startTime;
+          
+          // Kullanıcının cevabını kontrol et
+          const correctResponse = (trialData.probeDirection === 0 && e.keyCode === 90) || 
+                                 (trialData.probeDirection === 1 && e.keyCode === 77);
+          
+          // Tepki verdiğini işaretle
+          setResponseGiven(true);
+          
+          // Tepki sonuçlarını kaydet
+          setResponseTime(responseTime);
+          setResponseCorrect(correctResponse);
+          
+          // Sonucu kaydet
+          const updatedTrialData = {
+            ...trialData,
+            responseTime,
+            correct: correctResponse
+          };
+          
+          saveTrialResult(updatedTrialData);
+          
+          // Feedback fazına geç (doğru/yanlış gösterimi)
+          setPhase('feedback');
         }
-      };
-      
-      saveTrialToFirebase();
-      setPhase('feedback');
+      }
     };
     
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [phase, trialData, sessionId]);
+    // Klavye olayını dinle
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Temizleme fonksiyonu
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [phase, trialData, responseGiven, saveTrialResult]);
+  
+  // Görev tamamlandığında tamamlanma tarihini de kaydet
+  const completeTask = async () => {
+    try {
+      await setDoc(doc(db, "sessions", sessionId), { 
+        completed: true,
+        completedAt: new Date().toISOString()
+      }, { merge: true });
+      setPhase('completed');
+    } catch (error) {
+      console.error("Error completing session: ", error);
+    }
+  };
   
   // Deneme akışını yönet
   useEffect(() => {
     let timeoutId;
     
-    if (currentTrial >= maxTrials) {
-      // Görev tamamlandı, oturumu tamamlandı olarak işaretle
-      const completeSession = async () => {
-        try {
-          await setDoc(doc(db, "sessions", sessionId), { completed: true }, { merge: true });
-        } catch (error) {
-          console.error("Error completing session: ", error);
-        }
-      };
-      
-      completeSession();
-      
-      // Sonuç sayfasına yönlendir
-      router.push('/results');
-      return;
-    }
-    
     if (phase === 'fixation') {
+      // Tepki verildi mi durumunu sıfırla
+      setResponseGiven(false);
+      
       // Yeni deneme oluştur
       setTrialData(createTrial());
       
@@ -149,18 +208,24 @@ export default function DotProbeTask() {
       }, 500);
     }
     else if (phase === 'feedback') {
-      // 1000ms sonra bir sonraki denemeye geç
+      // 1000ms sonra bir sonraki denemeye geç veya görevi tamamla
       timeoutId = setTimeout(() => {
-        setCurrentTrial(prev => prev + 1);
-        setPhase('fixation');
-      }, 1000);
+        if (currentTrial >= maxTrials - 1) {
+          // Görev tamamlandı
+          completeTask();
+        } else {
+          // Bir sonraki denemeye geç
+          setCurrentTrial(prev => prev + 1);
+          setPhase('fixation');
+        }
+      }, 800);
     }
     
     // Temizleme fonksiyonu
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [phase, currentTrial, maxTrials, createTrial, sessionId, router]);
+  }, [phase, currentTrial, maxTrials, createTrial, sessionId]);
   
   // Ana sayfaya dön
   const goToHomePage = () => {
@@ -175,8 +240,8 @@ export default function DotProbeTask() {
         )}
         
         {phase === 'stimulus' && trialData && (
-          <div className="flex flex-col items-center space-y-16">
-            <div className="text-xl font-medium">
+          <div className="flex flex-col items-center">
+            <div className="text-xl font-medium" style={{ marginBottom: '3cm' }}>
               {trialData.threatPosition === 0 ? trialData.threatWord : trialData.neutralWord}
             </div>
             <div className="text-xl font-medium">
@@ -186,8 +251,8 @@ export default function DotProbeTask() {
         )}
         
         {phase === 'probe' && trialData && (
-          <div className="flex flex-col items-center space-y-16">
-            <div className="h-8 flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <div className="h-8 flex items-center justify-center" style={{ marginBottom: '3cm' }}>
               {trialData.probePosition === 0 && (
                 <div className="text-2xl">
                   {trialData.probeDirection === 0 ? '←' : '→'}
@@ -200,15 +265,6 @@ export default function DotProbeTask() {
                   {trialData.probeDirection === 0 ? '←' : '→'}
                 </div>
               )}
-            </div>
-          </div>
-        )}
-        
-        {phase === 'feedback' && (
-          <div className={`text-xl ${responseCorrect ? 'text-green-600' : 'text-red-600'}`}>
-            {responseCorrect ? 'Doğru!' : 'Yanlış!'}
-            <div className="text-sm text-gray-600 mt-2">
-              Tepki süresi: {responseTime.toFixed(0)} ms
             </div>
           </div>
         )}
@@ -230,6 +286,14 @@ export default function DotProbeTask() {
           </div>
         )}
         
+        {phase === 'feedback' && (
+          <div className="flex flex-col items-center">
+            <div className={`text-2xl font-bold ${responseCorrect ? 'text-green-600' : 'text-red-600'}`}>
+              {responseCorrect ? 'Doğru!' : 'Yanlış!'}
+            </div>
+          </div>
+        )}
+        
         {phase !== 'completed' && (
           <div className="absolute bottom-4 left-0 right-0 text-center text-sm text-gray-500">
             Deneme: {currentTrial + 1} / {maxTrials}
@@ -238,4 +302,35 @@ export default function DotProbeTask() {
       </div>
     </div>
   );
+}
+
+export function generateTrials(wordPairs, trialCount) {
+  const trials = [];
+  
+  for (let i = 0; i < trialCount; i++) {
+    // Rastgele bir kelime çifti seç
+    const randomPairIndex = Math.floor(Math.random() * wordPairs.length);
+    const { threat, neutral } = wordPairs[randomPairIndex];
+    
+    // Tehdit kelimesinin konumu (0: üst, 1: alt) - %50 ihtimalle
+    const threatPosition = Math.random() < 0.5 ? 0 : 1;
+    
+    // Probe'un konumu (0: üst, 1: alt) - %50 ihtimalle
+    const probePosition = Math.random() < 0.5 ? 0 : 1;
+    
+    // Probe'un yönü (0: sol, 1: sağ) - %50 ihtimalle
+    const probeDirection = Math.random() < 0.5 ? 0 : 1;
+    
+    trials.push({
+      trialNumber: i + 1,
+      threatWord: threat,
+      neutralWord: neutral,
+      threatPosition,
+      probePosition,
+      probeDirection,
+      probeFollowsThreat: probePosition === threatPosition
+    });
+  }
+  
+  return trials;
 }

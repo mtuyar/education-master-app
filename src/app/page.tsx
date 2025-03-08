@@ -3,49 +3,84 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '../../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
 
 export default function Home() {
   const [pin, setPin] = useState('');
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
   
   const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPin(e.target.value);
   };
   
   const handleSubmit = async () => {
-    // Yönetici girişi kontrolü
-    if (pin === '424242result') {
+    if (!pin.trim()) return;
+    
+    // Özel PIN kodu kontrolü
+    if (pin.trim() === "424242result") {
       router.push('/admin_panel');
       return;
     }
     
-    if (pin.trim()) {
-      // Rastgele deney veya kontrol grubuna atama
-      const isExperimental = Math.random() < 0.5;
-      const group = isExperimental ? 'experimental' : 'control';
+    try {
+      setLoading(true);
       
-      // Oturum ID oluştur
-      const timestamp = new Date().getTime();
-      const sessionId = `${pin}_${timestamp}`;
+      // Önce bu PIN ile mevcut bir oturum var mı kontrol et
+      const sessionsQuery = query(
+        collection(db, "sessions"),
+        where("pin", "==", pin.trim())
+      );
       
-      // Firebase'e kullanıcı bilgilerini kaydet
-      try {
-        await setDoc(doc(db, "sessions", sessionId), {
-          pin: pin,
-          group: group,
-          timestamp: timestamp,
+      const sessionsSnapshot = await getDocs(sessionsQuery);
+      let existingSessionId = null;
+      let isCompleted = false;
+      let completionDate = null;
+      
+      sessionsSnapshot.forEach((doc) => {
+        existingSessionId = doc.id;
+        isCompleted = doc.data().completed || false;
+        completionDate = doc.data().completedAt ? new Date(doc.data().completedAt) : null;
+      });
+      
+      if (existingSessionId && isCompleted) {
+        // Oturum zaten tamamlanmışsa, modal göster
+        setShowCompletionModal(true);
+        setLoading(false);
+        return;
+      }
+      
+      if (existingSessionId) {
+        // Mevcut oturumu kullan
+        localStorage.setItem('dots_session_id', existingSessionId);
+        
+        // Her zaman bilgilendirme sayfasından başla
+        router.push('/info');
+      } else {
+        // Yeni oturum oluştur
+        // Rastgele grup ataması (deneysel veya kontrol)
+        const group = Math.random() < 0.5 ? 'experimental' : 'control';
+        
+        // Firestore'da yeni bir oturum belgesi oluştur
+        await setDoc(doc(db, "sessions", pin.trim()), {
+          pin: pin.trim(),
+          group,
+          timestamp: new Date().toISOString(),
           completed: false
         });
         
         // Oturum ID'sini localStorage'a kaydet
-        localStorage.setItem('dots_session_id', sessionId);
+        localStorage.setItem('dots_session_id', pin.trim());
         
+        // Bilgilendirme sayfasına yönlendir
         router.push('/info');
-      } catch (error) {
-        console.error("Error creating session: ", error);
-        alert("Bir hata oluştu. Lütfen tekrar deneyin.");
       }
+    } catch (error) {
+      console.error("Error creating session: ", error);
+      setError("Oturum oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.");
+      setLoading(false);
     }
   };
   
@@ -71,11 +106,42 @@ export default function Home() {
         <button
           onClick={handleSubmit}
           className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium text-center rounded-lg transition-colors"
-          disabled={!pin.trim()}
+          disabled={!pin.trim() || loading}
         >
-          Devam Et
+          {loading ? 'Lütfen bekleyin...' : 'Devam Et'}
         </button>
+        
+        {error && (
+          <div className="mt-3 text-red-500 text-sm text-center">
+            {error}
+          </div>
+        )}
       </div>
+      
+      {/* Tamamlanmış Oturum Modalı */}
+      {showCompletionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <div className="text-center">
+              <div className="mb-4 flex justify-center">
+                <svg className="h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Görev Tamamlandı</h3>
+              <p className="text-gray-600 mb-6">
+                Bu PIN kodu ile görev zaten tamamlanmış. Teşekkür ederiz!
+              </p>
+              <button
+                onClick={() => setShowCompletionModal(false)}
+                className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+              >
+                Tamam
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

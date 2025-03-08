@@ -21,6 +21,8 @@ export default function Instructions() {
           </ul>
           
           <p>Önce kısa bir alıştırma yapacak, ardından ana göreve geçeceksiniz.</p>
+          
+          <p><strong>Not:</strong> Alıştırma sırasında cevabınızın doğru veya yanlış olduğu gösterilecektir. Ana görevde ise bu geri bildirim olmayacaktır.</p>
         </div>
         
         <button 

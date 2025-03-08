@@ -16,6 +16,11 @@ export default function Practice() {
   const [trialData, setTrialData] = useState(null);
   const [responseTime, setResponseTime] = useState(null);
   const [responseCorrect, setResponseCorrect] = useState(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(null);
+  const [responseGiven, setResponseGiven] = useState(false);
+  const [trialActive, setTrialActive] = useState(false);
+  const [startTime, setStartTime] = useState(null);
   
   // Yeni alıştırma denemesi oluştur
   const createTrial = useCallback(() => {
@@ -23,22 +28,21 @@ export default function Practice() {
     const randomPairIndex = Math.floor(Math.random() * wordPairs.length);
     const selectedPair = wordPairs[randomPairIndex];
     
-    // Tehdit kelimesinin konumu (üst: 0, alt: 1)
-    const threatPosition = Math.random() < 0.5 ? 0 : 1;
+    // Alıştırmada sadece nötr kelimeler kullanılacak
+    // Üst ve alt konumlar için farklı nötr kelimeler seçelim
+    const randomPairIndex2 = Math.floor(Math.random() * wordPairs.length);
+    const selectedPair2 = wordPairs[randomPairIndex2];
     
-    // Probe'un konumu - %50 ihtimalle tehdit kelimesinin, %50 ihtimalle nötr kelimenin konumunda
-    const probeFollowsThreat = Math.random() < 0.5;
-    const probePosition = probeFollowsThreat ? threatPosition : (threatPosition === 0 ? 1 : 0);
+    // Probe'un konumu (üst: 0, alt: 1)
+    const probePosition = Math.random() < 0.5 ? 0 : 1;
     
     // Probe'un yönü (sol: 0, sağ: 1)
     const probeDirection = Math.random() < 0.5 ? 0 : 1;
     
     return {
-      threatWord: selectedPair.threatWord,
-      neutralWord: selectedPair.neutralWord,
-      threatPosition,
+      topWord: selectedPair.neutralWord,
+      bottomWord: selectedPair2.neutralWord,
       probePosition,
-      probeFollowsThreat,
       probeDirection,
       startTime: null,
       responseTime: null,
@@ -113,6 +117,40 @@ export default function Practice() {
     };
   }, [phase, currentTrial, maxTrials, createTrial]);
   
+  // Alıştırma tamamlandığında sadece görev sayfasına yönlendir
+  const completePractice = () => {
+    router.push('/task');
+  };
+  
+  const handleResponse = (keyCode) => {
+    if (trialActive && !responseGiven) {
+      const endTime = performance.now();
+      const responseTime = endTime - startTime;
+      
+      // Kullanıcının cevabını kontrol et
+      const correctResponse = (trialData.probeDirection === 0 && keyCode === 90) || 
+                             (trialData.probeDirection === 1 && keyCode === 77);
+      
+      setResponseGiven(true);
+      setIsCorrect(correctResponse);
+      setShowFeedback(true);
+      
+      // Doğru/yanlış gösterimini 2500ms sonra kapat
+      setTimeout(() => {
+        setShowFeedback(false);
+        
+        if (currentTrial < maxTrials - 1) {
+          setCurrentTrial(prev => prev + 1);
+          setResponseGiven(false);
+          setTrialActive(false);
+          startPractice();
+        } else {
+          completePractice();
+        }
+      }, 2500); // 1500ms yerine 2500ms
+    }
+  };
+  
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white">
       {phase === 'ready' && (
@@ -140,18 +178,18 @@ export default function Practice() {
           
           {phase === 'stimulus' && trialData && (
             <div className="flex flex-col items-center">
-              <div className="text-2xl mb-8" style={{ fontFamily: 'Arial', fontSize: '14pt' }}>
-                {trialData.threatPosition === 0 ? trialData.threatWord : trialData.neutralWord}
+              <div className="text-2xl" style={{ fontFamily: 'Arial', fontSize: '14pt', marginBottom: '3cm' }}>
+                {trialData.topWord}
               </div>
               <div className="text-2xl" style={{ fontFamily: 'Arial', fontSize: '14pt' }}>
-                {trialData.threatPosition === 1 ? trialData.threatWord : trialData.neutralWord}
+                {trialData.bottomWord}
               </div>
             </div>
           )}
           
           {phase === 'probe' && trialData && (
-            <div className="flex flex-col items-center space-y-16">
-              <div className="h-8 flex items-center justify-center">
+            <div className="flex flex-col items-center">
+              <div className="h-8 flex items-center justify-center" style={{ marginBottom: '3cm' }}>
                 {trialData.probePosition === 0 && (
                   <div className="text-3xl">
                     {trialData.probeDirection === 0 ? '←' : '→'}
@@ -193,11 +231,19 @@ export default function Practice() {
             Tebrikler! Alıştırmayı tamamladınız. Şimdi ana göreve geçebilirsiniz.
           </p>
           <button
-            onClick={() => router.push('/task')}
+            onClick={completePractice}
             className="px-6 py-3 bg-blue-600 text-white rounded text-lg font-medium"
           >
             Ana Göreve Başla
           </button>
+        </div>
+      )}
+      
+      {showFeedback && (
+        <div className={`fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50`}>
+          <div className={`text-4xl font-bold p-8 rounded-lg ${isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+            {isCorrect ? 'Doğru!' : 'Yanlış!'}
+          </div>
         </div>
       )}
     </div>

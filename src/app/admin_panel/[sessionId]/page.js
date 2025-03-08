@@ -4,6 +4,11 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { db } from '../../../../firebase';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { Bar } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+
+// ChartJS bileşenlerini kaydet
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 export default function SessionDetails() {
   const router = useRouter();
@@ -20,7 +25,8 @@ export default function SessionDetails() {
     averageRT: 0,
     accuracyRate: 0,
     threatFollowedRT: 0,
-    neutralFollowedRT: 0
+    neutralFollowedRT: 0,
+    totalDuration: 0
   });
   
   useEffect(() => {
@@ -75,9 +81,12 @@ export default function SessionDetails() {
     const averageRT = totalRT / totalTrials;
     const accuracyRate = (correctTrials / totalTrials) * 100;
     
+    // Toplam geçen süre (milisaniye cinsinden)
+    const totalDuration = totalRT;
+    
     // Tehdit ve nötr kelime sonrası tepki süreleri
-    const threatFollowedTrials = resultsData.filter(trial => trial.probeFollowsThreat && trial.correct);
-    const neutralFollowedTrials = resultsData.filter(trial => !trial.probeFollowsThreat && trial.correct);
+    const threatFollowedTrials = resultsData.filter(trial => trial.probePosition === trial.threatPosition);
+    const neutralFollowedTrials = resultsData.filter(trial => trial.probePosition !== trial.threatPosition);
     
     const threatFollowedRT = threatFollowedTrials.length > 0 
       ? threatFollowedTrials.reduce((sum, trial) => sum + trial.responseTime, 0) / threatFollowedTrials.length 
@@ -93,7 +102,8 @@ export default function SessionDetails() {
       averageRT,
       accuracyRate,
       threatFollowedRT,
-      neutralFollowedRT
+      neutralFollowedRT,
+      totalDuration
     });
   };
   
@@ -120,6 +130,79 @@ export default function SessionDetails() {
   const getCorrectText = (correct) => {
     return correct ? 'Doğru' : 'Yanlış';
   };
+
+  // CSV dışa aktarma
+  const exportToCSV = (data, filename) => {
+    // CSV başlıkları
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Sıra,Tehdit Kelimesi,Nötr Kelime,Ok Konumu,Ok Yönü,Tehdit Kelimesi Konumu,Sonuç,Tepki Süresi (ms)\n";
+    
+    data.forEach(trial => {
+      csvContent += `${trial.trialNumber},${trial.threatWord},${trial.neutralWord},${getProbePositionText(trial.probePosition, trial.threatPosition)},${getProbeDirectionText(trial.probeDirection)},${getThreatPositionText(trial.threatPosition)},${getCorrectText(trial.correct)},${Math.round(trial.responseTime)}\n`;
+    });
+    
+    // CSV dosyasını indir
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Tehdit ve nötr kelimelere verilen tepki sürelerini hesapla
+  const calculateRTByWordType = (results) => {
+    if (results.length === 0) return { threat: 0, neutral: 0 };
+    
+    const threatTrials = results.filter(trial => trial.probePosition === trial.threatPosition);
+    const neutralTrials = results.filter(trial => trial.probePosition !== trial.threatPosition);
+    
+    const threatRT = threatTrials.length > 0 
+      ? threatTrials.reduce((sum, trial) => sum + trial.responseTime, 0) / threatTrials.length 
+      : 0;
+      
+    const neutralRT = neutralTrials.length > 0 
+      ? neutralTrials.reduce((sum, trial) => sum + trial.responseTime, 0) / neutralTrials.length 
+      : 0;
+      
+    return { 
+      threat: threatRT.toFixed(2), 
+      neutral: neutralRT.toFixed(2)
+    };
+  };
+
+  // Grafik verilerini hazırlayalım
+  const rtChartData = {
+    labels: ['Tehdit Kelimesi', 'Nötr Kelime'],
+    datasets: [
+      {
+        label: 'Ortalama Tepki Süresi (ms)',
+        data: [calculateRTByWordType(results).threat, calculateRTByWordType(results).neutral],
+        backgroundColor: ['rgba(255, 99, 132, 0.6)', 'rgba(54, 162, 235, 0.6)'],
+        borderColor: ['rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)'],
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+      title: {
+        display: true,
+        text: 'Kelime Tipine Göre Tepki Süresi',
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+      },
+    },
+  };
   
   return (
     <div className="min-h-screen p-6 bg-gray-50">
@@ -128,10 +211,16 @@ export default function SessionDetails() {
           <h1 className="text-3xl font-bold">Oturum Detayları</h1>
           <div>
             <button 
-              onClick={() => router.push('/admin')}
+              onClick={() => router.push('/admin_panel')}
               className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors mr-2"
             >
               Geri Dön
+            </button>
+            <button 
+              onClick={() => exportToCSV(results, `session_${sessionId}_results.csv`)}
+              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors mr-2"
+            >
+              CSV İndir
             </button>
             <button 
               onClick={() => router.push('/')}
@@ -206,6 +295,10 @@ export default function SessionDetails() {
                   <p className="text-2xl font-bold">{stats.averageRT.toFixed(2)} ms</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-gray-600">Toplam Geçen Süre:</p>
+                  <p className="text-2xl font-bold">{(stats.totalDuration / 1000).toFixed(2)} saniye</p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
                   <p className="text-gray-600">Tehdit Kelimesi Sonrası Ortalama Tepki Süresi:</p>
                   <p className="text-2xl font-bold">{stats.threatFollowedRT.toFixed(2)} ms</p>
                 </div>
@@ -216,6 +309,13 @@ export default function SessionDetails() {
               </div>
             </div>
             
+            <div className="bg-white shadow-md rounded-lg p-6 mb-8">
+              <h2 className="text-2xl font-semibold mb-4">Tepki Süresi Analizi</h2>
+              <div style={{ height: "300px" }}>
+                <Bar data={rtChartData} options={chartOptions} />
+              </div>
+            </div>
+            
             <div className="bg-white shadow-md rounded-lg overflow-hidden">
               <div className="p-4 bg-blue-600 text-white">
                 <h2 className="text-xl font-semibold">Detaylı Sonuçlar</h2>
@@ -223,30 +323,30 @@ export default function SessionDetails() {
               
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-blue-600 text-white">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                         Sıra
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                         Tehdit Kelimesi
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                         Nötr Kelime
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                         Ok Konumu
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                         Ok Yönü
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                         Tehdit Kelimesi Konumu
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                         Sonuç
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                         Tepki Süresi (ms)
                       </th>
                     </tr>
