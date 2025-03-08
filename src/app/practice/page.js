@@ -57,23 +57,17 @@ export default function Practice() {
   
   // Tuş basımlarını dinle
   useEffect(() => {
-    const handleKeyPress = (e) => {
-      if (phase !== 'probe') return;
-      
-      const key = e.key.toLowerCase();
-      const correctKey = trialData.probeDirection === 0 ? 'z' : 'm';
-      
-      const endTime = performance.now();
-      const rt = endTime - trialData.startTime;
-      
-      setResponseTime(rt);
-      setResponseCorrect(key === correctKey);
-      setPhase('feedback');
+    const handleKeyDown = (e) => {
+      if (e.keyCode === 90 || e.keyCode === 77) { // Z veya M tuşu
+        handleResponse(e.keyCode);
+      }
     };
     
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [phase, trialData]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
   
   // Deneme fazlarını yönet
   useEffect(() => {
@@ -149,6 +143,16 @@ export default function Practice() {
         }
       }, 2500); // 1500ms yerine 2500ms
     }
+  };
+  
+  const startNextTrial = () => {
+    // ...
+    setTimeout(() => {
+      setPhase('stimulus');
+      const now = performance.now();
+      setStartTime(now); // setStartTime kullanımı
+      // ...
+    }, 1000);
   };
   
   return (

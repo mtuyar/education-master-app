@@ -104,24 +104,24 @@ export default function DotProbeTask() {
   }, [currentTrial]);
   
   // Deneme sonuçlarını kaydetme fonksiyonu
-  const saveTrialResult = async (trialResult) => {
+  const saveTrialResult = useCallback(async (trialData) => {
     try {
       // Deneme zaten kaydedilmiş mi kontrol et
-      const existingTrial = completedTrials.find(trial => trial.trialNumber === trialResult.trialNumber);
+      const existingTrial = completedTrials.find(trial => trial.trialNumber === trialData.trialNumber);
       if (existingTrial) {
-        console.log(`Trial ${trialResult.trialNumber} already saved, skipping...`);
+        console.log(`Trial ${trialData.trialNumber} already saved, skipping...`);
         return;
       }
       
       // Yeni deneme sonucunu kaydet
-      await addDoc(collection(db, "sessions", sessionId, "trials"), trialResult);
+      await addDoc(collection(db, "sessions", sessionId, "trials"), trialData);
       
       // Tamamlanan denemeleri güncelle
-      setCompletedTrials(prev => [...prev, trialResult]);
+      setCompletedTrials(prev => [...prev, trialData]);
     } catch (error) {
       console.error("Error saving trial result: ", error);
     }
-  };
+  }, [sessionId]);
   
   // Klavye olaylarını dinleyen useEffect
   useEffect(() => {
@@ -225,7 +225,7 @@ export default function DotProbeTask() {
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [phase, currentTrial, maxTrials, createTrial, sessionId]);
+  }, [phase, currentTrial, maxTrials, createTrial, sessionId, completeTask]);
   
   // Ana sayfaya dön
   const goToHomePage = () => {

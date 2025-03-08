@@ -11,6 +11,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [completionDate, setCompletionDate] = useState<Date | null>(null);
   
   const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPin(e.target.value);
@@ -37,12 +38,11 @@ export default function Home() {
       const sessionsSnapshot = await getDocs(sessionsQuery);
       let existingSessionId = null;
       let isCompleted = false;
-      let completionDate = null;
       
       sessionsSnapshot.forEach((doc) => {
         existingSessionId = doc.id;
         isCompleted = doc.data().completed || false;
-        completionDate = doc.data().completedAt ? new Date(doc.data().completedAt) : null;
+        setCompletionDate(doc.data().completedAt ? new Date(doc.data().completedAt) : null);
       });
       
       if (existingSessionId && isCompleted) {
@@ -83,6 +83,8 @@ export default function Home() {
       setLoading(false);
     }
   };
+  
+  const formattedCompletionDate = completionDate ? completionDate.toLocaleDateString('tr-TR') : 'Tamamlanmadı';
   
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-gray-50">
@@ -132,6 +134,7 @@ export default function Home() {
               <p className="text-gray-600 mb-6">
                 Bu PIN kodu ile görev zaten tamamlanmış. Teşekkür ederiz!
               </p>
+              <p>Tamamlanma Tarihi: {formattedCompletionDate}</p>
               <button
                 onClick={() => setShowCompletionModal(false)}
                 className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
