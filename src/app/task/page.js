@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { wordPairs } from '../data/sample_data';
 import { db } from '../../../firebase';
@@ -11,7 +11,7 @@ export default function DotProbeTask() {
   const [sessionId, setSessionId] = useState('');
   
   const [currentTrial, setCurrentTrial] = useState(0);
-  const [maxTrials] = useState(15); // Toplam deneme sayısı
+  const [maxTrials] = useState(301); // Toplam deneme sayısı
   const [phase, setPhase] = useState('fixation'); // fixation, stimulus, probe, feedback
   const [trialData, setTrialData] = useState(null);
   const [responseTime, setResponseTime] = useState(null);
@@ -21,6 +21,9 @@ export default function DotProbeTask() {
   // Mevcut ilerlemeyi kontrol etmek için state ekleyin
   const [completedTrials, setCompletedTrials] = useState([]);
   const [isInitializing, setIsInitializing] = useState(true);
+  
+  // Kullanılmış kelime çiftlerini takip etmek için useRef kullanıyoruz
+  const usedPairIndicesRef = useRef([]);
   
   // Oturum bilgilerini ve mevcut ilerlemeyi kontrol eden useEffect
   useEffect(() => {
@@ -47,6 +50,10 @@ export default function DotProbeTask() {
           
           // Tamamlanan denemeleri kaydet
           setCompletedTrials(existingTrials);
+          
+          // Kullanılmış kelime çiftlerinin indekslerini kaydet
+          const usedIndices = existingTrials.map(trial => trial.pairIndex).filter(index => index !== undefined);
+          usedPairIndicesRef.current = usedIndices;
           
           // Eğer tamamlanan denemeler varsa, kaldığı yerden devam et
           if (existingTrials.length > 0) {
@@ -75,9 +82,45 @@ export default function DotProbeTask() {
   
   // Yeni deneme oluştur
   const createTrial = useCallback(() => {
-    // Rastgele bir kelime çifti seçelim
-    const randomPairIndex = Math.floor(Math.random() * wordPairs.length);
-    const selectedPair = wordPairs[randomPairIndex];
+    // Kullanılmamış kelime çiftlerinin indekslerini bul
+    const availableIndices = Array.from(Array(wordPairs.length).keys())
+      .filter(index => !usedPairIndicesRef.current.includes(index));
+    
+    // Tüm kelime çiftleri kullanıldıysa, rastgele bir kelime çifti seç
+    if (availableIndices.length === 0) {
+      console.log("Tüm kelime çiftleri kullanıldı, rastgele seçim yapılıyor.");
+      const randomPairIndex = Math.floor(Math.random() * wordPairs.length);
+      const selectedPair = wordPairs[randomPairIndex];
+      
+      // Tehdit kelimesinin konumu (üst: 0, alt: 1)
+      const threatPosition = Math.random() < 0.5 ? 0 : 1;
+      
+      // Probe'un konumu - rastgele olarak %50 ihtimalle tehdit kelimesinin, %50 ihtimalle nötr kelimenin konumunda
+      const probeFollowsThreat = Math.random() < 0.5;
+      const probePosition = probeFollowsThreat ? threatPosition : (threatPosition === 0 ? 1 : 0);
+      
+      // Probe'un yönü (sol: 0, sağ: 1)
+      const probeDirection = Math.random() < 0.5 ? 0 : 1;
+      
+      return {
+        trialNumber: currentTrial + 1,
+        pairIndex: randomPairIndex,
+        threatWord: selectedPair.threatWord,
+        neutralWord: selectedPair.neutralWord,
+        threatPosition,
+        probePosition,
+        probeFollowsThreat,
+        probeDirection,
+        startTime: null,
+        responseTime: null,
+        correct: null
+      };
+    }
+    
+    // Kullanılmamış kelime çiftlerinden rastgele birini seç
+    const randomIndex = Math.floor(Math.random() * availableIndices.length);
+    const selectedPairIndex = availableIndices[randomIndex];
+    const selectedPair = wordPairs[selectedPairIndex];
     
     // Tehdit kelimesinin konumu (üst: 0, alt: 1)
     const threatPosition = Math.random() < 0.5 ? 0 : 1;
@@ -89,8 +132,12 @@ export default function DotProbeTask() {
     // Probe'un yönü (sol: 0, sağ: 1)
     const probeDirection = Math.random() < 0.5 ? 0 : 1;
     
+    // Kullanılan kelime çiftinin indeksini kaydet
+    usedPairIndicesRef.current.push(selectedPairIndex);
+    
     return {
       trialNumber: currentTrial + 1,
+      pairIndex: selectedPairIndex,
       threatWord: selectedPair.threatWord,
       neutralWord: selectedPair.neutralWord,
       threatPosition,
@@ -121,7 +168,7 @@ export default function DotProbeTask() {
     } catch (error) {
       console.error("Error saving trial result: ", error);
     }
-  }, [sessionId]);
+  }, [sessionId, completedTrials]);
   
   // Klavye olaylarını dinleyen useEffect
   useEffect(() => {
@@ -168,7 +215,7 @@ export default function DotProbeTask() {
   }, [phase, trialData, responseGiven, saveTrialResult]);
   
   // Görev tamamlandığında tamamlanma tarihini de kaydet
-  const completeTask = async () => {
+  const completeTask = useCallback(async () => {
     try {
       await setDoc(doc(db, "sessions", sessionId), { 
         completed: true,
@@ -178,7 +225,7 @@ export default function DotProbeTask() {
     } catch (error) {
       console.error("Error completing session: ", error);
     }
-  };
+  }, [sessionId]);
   
   // Deneme akışını yönet
   useEffect(() => {
@@ -225,7 +272,7 @@ export default function DotProbeTask() {
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [phase, currentTrial, maxTrials, createTrial, sessionId, completeTask]);
+  }, [phase, currentTrial, maxTrials, createTrial, completeTask]);
   
   // Ana sayfaya dön
   const goToHomePage = () => {

@@ -16,11 +16,6 @@ export default function Practice() {
   const [trialData, setTrialData] = useState(null);
   const [responseTime, setResponseTime] = useState(null);
   const [responseCorrect, setResponseCorrect] = useState(null);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(null);
-  const [responseGiven, setResponseGiven] = useState(false);
-  const [trialActive, setTrialActive] = useState(false);
-  const [startTime, setStartTime] = useState(null);
   
   // Yeni alıştırma denemesi oluştur
   const createTrial = useCallback(() => {
@@ -28,25 +23,32 @@ export default function Practice() {
     const randomPairIndex = Math.floor(Math.random() * wordPairs.length);
     const selectedPair = wordPairs[randomPairIndex];
     
-    // Alıştırmada sadece nötr kelimeler kullanılacak
-    // Üst ve alt konumlar için farklı nötr kelimeler seçelim
-    const randomPairIndex2 = Math.floor(Math.random() * wordPairs.length);
-    const selectedPair2 = wordPairs[randomPairIndex2];
+    // İkinci bir nötr kelime için farklı bir kelime çifti seçelim
+    let secondPairIndex;
+    do {
+      secondPairIndex = Math.floor(Math.random() * wordPairs.length);
+    } while (secondPairIndex === randomPairIndex);
     
-    // Probe'un konumu (üst: 0, alt: 1)
-    const probePosition = Math.random() < 0.5 ? 0 : 1;
+    const secondNeutralWord = wordPairs[secondPairIndex].neutralWord;
+    
+    // Tehdit kelimesinin konumu (üst: 0, alt: 1)
+    const threatPosition = Math.random() < 0.5 ? 0 : 1;
+    
+    // Probe'un konumu - %50 ihtimalle tehdit kelimesinin, %50 ihtimalle nötr kelimenin konumunda
+    const probeFollowsThreat = Math.random() < 0.5;
+    const probePosition = probeFollowsThreat ? threatPosition : (threatPosition === 0 ? 1 : 0);
     
     // Probe'un yönü (sol: 0, sağ: 1)
     const probeDirection = Math.random() < 0.5 ? 0 : 1;
     
     return {
-      topWord: selectedPair.neutralWord,
-      bottomWord: selectedPair2.neutralWord,
+      neutralWord: selectedPair.neutralWord,
+      neutralWord2: secondNeutralWord,
+      threatPosition,
       probePosition,
+      probeFollowsThreat,
       probeDirection,
-      startTime: null,
-      responseTime: null,
-      correct: null
+      startTime: null
     };
   }, []);
   
@@ -57,17 +59,23 @@ export default function Practice() {
   
   // Tuş basımlarını dinle
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.keyCode === 90 || e.keyCode === 77) { // Z veya M tuşu
-        handleResponse(e.keyCode);
-      }
+    const handleKeyPress = (e) => {
+      if (phase !== 'probe') return;
+      
+      const key = e.key.toLowerCase();
+      const correctKey = trialData.probeDirection === 0 ? 'z' : 'm';
+      
+      const endTime = performance.now();
+      const rt = endTime - trialData.startTime;
+      
+      setResponseTime(rt);
+      setResponseCorrect(key === correctKey);
+      setPhase('feedback');
     };
     
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [phase, trialData]);
   
   // Deneme fazlarını yönet
   useEffect(() => {
@@ -111,50 +119,6 @@ export default function Practice() {
     };
   }, [phase, currentTrial, maxTrials, createTrial]);
   
-  // Alıştırma tamamlandığında sadece görev sayfasına yönlendir
-  const completePractice = () => {
-    router.push('/task');
-  };
-  
-  const handleResponse = (keyCode) => {
-    if (trialActive && !responseGiven) {
-      const endTime = performance.now();
-      const responseTime = endTime - startTime;
-      
-      // Kullanıcının cevabını kontrol et
-      const correctResponse = (trialData.probeDirection === 0 && keyCode === 90) || 
-                             (trialData.probeDirection === 1 && keyCode === 77);
-      
-      setResponseGiven(true);
-      setIsCorrect(correctResponse);
-      setShowFeedback(true);
-      
-      // Doğru/yanlış gösterimini 2500ms sonra kapat
-      setTimeout(() => {
-        setShowFeedback(false);
-        
-        if (currentTrial < maxTrials - 1) {
-          setCurrentTrial(prev => prev + 1);
-          setResponseGiven(false);
-          setTrialActive(false);
-          startPractice();
-        } else {
-          completePractice();
-        }
-      }, 2500); // 1500ms yerine 2500ms
-    }
-  };
-  
-  const startNextTrial = () => {
-    // ...
-    setTimeout(() => {
-      setPhase('stimulus');
-      const now = performance.now();
-      setStartTime(now); // setStartTime kullanımı
-      // ...
-    }, 1000);
-  };
-  
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white">
       {phase === 'ready' && (
@@ -182,11 +146,11 @@ export default function Practice() {
           
           {phase === 'stimulus' && trialData && (
             <div className="flex flex-col items-center">
-              <div className="text-2xl" style={{ fontFamily: 'Arial', fontSize: '14pt', marginBottom: '3cm' }}>
-                {trialData.topWord}
+              <div className="text-xl font-medium" style={{ marginBottom: '3cm' }}>
+                {trialData.threatPosition === 0 ? trialData.neutralWord : trialData.neutralWord2}
               </div>
-              <div className="text-2xl" style={{ fontFamily: 'Arial', fontSize: '14pt' }}>
-                {trialData.bottomWord}
+              <div className="text-xl font-medium">
+                {trialData.threatPosition === 1 ? trialData.neutralWord : trialData.neutralWord2}
               </div>
             </div>
           )}
@@ -195,14 +159,14 @@ export default function Practice() {
             <div className="flex flex-col items-center">
               <div className="h-8 flex items-center justify-center" style={{ marginBottom: '3cm' }}>
                 {trialData.probePosition === 0 && (
-                  <div className="text-3xl">
+                  <div className="text-2xl">
                     {trialData.probeDirection === 0 ? '←' : '→'}
                   </div>
                 )}
               </div>
               <div className="h-8 flex items-center justify-center">
                 {trialData.probePosition === 1 && (
-                  <div className="text-3xl">
+                  <div className="text-2xl">
                     {trialData.probeDirection === 0 ? '←' : '→'}
                   </div>
                 )}
@@ -213,9 +177,6 @@ export default function Practice() {
           {phase === 'feedback' && (
             <div className={`text-xl ${responseCorrect ? 'text-green-600' : 'text-red-600'}`}>
               {responseCorrect ? 'Doğru!' : 'Yanlış!'}
-              <div className="text-lg text-gray-600 mt-2">
-                Tepki süresi: {responseTime.toFixed(0)} ms
-              </div>
               <div className="mt-4 text-lg text-gray-700">
                 Sol ok için <strong>Z</strong> tuşuna, sağ ok için <strong>M</strong> tuşuna basın
               </div>
@@ -235,19 +196,11 @@ export default function Practice() {
             Tebrikler! Alıştırmayı tamamladınız. Şimdi ana göreve geçebilirsiniz.
           </p>
           <button
-            onClick={completePractice}
+            onClick={() => router.push('/task')}
             className="px-6 py-3 bg-blue-600 text-white rounded text-lg font-medium"
           >
             Ana Göreve Başla
           </button>
-        </div>
-      )}
-      
-      {showFeedback && (
-        <div className={`fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50`}>
-          <div className={`text-4xl font-bold p-8 rounded-lg ${isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-            {isCorrect ? 'Doğru!' : 'Yanlış!'}
-          </div>
         </div>
       )}
     </div>
