@@ -11,7 +11,7 @@ export default function DotProbeTask() {
   const [sessionId, setSessionId] = useState('');
   
   const [currentTrial, setCurrentTrial] = useState(0);
-  const [maxTrials] = useState(301); // Toplam deneme sayısı
+  const [maxTrials] = useState(300); // Toplam deneme sayısı
   const [phase, setPhase] = useState('fixation'); // fixation, stimulus, probe, feedback
   const [trialData, setTrialData] = useState(null);
   const [responseTime, setResponseTime] = useState(null);
