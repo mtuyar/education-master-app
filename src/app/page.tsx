@@ -13,16 +13,35 @@ export default function Home() {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [completionDate, setCompletionDate] = useState<Date | null>(null);
   
+  // Geçerli anahtar kelimeler
+  const validKeywords = ['test', 'okul1', 'okul2', 'okul3', 'okul4', 'okul5', 'okul6'];
+  
   const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPin(e.target.value);
   };
   
   const handleSubmit = async () => {
-    if (!pin.trim()) return;
+    if (!pin.trim()) {
+      setError('Lütfen bir kullanıcı adı girin.');
+      return;
+    }
     
     // Özel PIN kodu kontrolü
     if (pin.trim() === "424242result") {
       router.push('/admin_panel');
+      return;
+    }
+    
+    // Geçerli anahtar kelime kontrolü
+    const inputLower = pin.trim().toLowerCase();
+    const matchingKeyword = validKeywords.find(keyword => inputLower.startsWith(keyword));
+    
+    // Anahtar kelime ile tam eşleşme kontrolü ve ek karakter kontrolü
+    if (!matchingKeyword) {
+      setError('Geçersiz kullanıcı adı. Lütfen size verilen formatta giriş yapın.');
+      return;
+    } else if (inputLower === matchingKeyword) {
+      setError('Lütfen kullanıcı adınızı tam olarak girin.');
       return;
     }
     
@@ -63,9 +82,14 @@ export default function Home() {
         // Rastgele grup ataması (deneysel veya kontrol)
         const group = Math.random() < 0.5 ? 'experimental' : 'control';
         
+        // Kullanıcının girdiği metinden anahtar kelimeyi belirle
+        const keyword = validKeywords.find(k => inputLower.startsWith(k)) || '';
+        
         // Firestore'da yeni bir oturum belgesi oluştur
         await setDoc(doc(db, "sessions", pin.trim()), {
           pin: pin.trim(),
+          keyword: keyword,
+          name: pin.trim(), // Kullanıcının girdiği tam metni ad olarak kaydet
           group,
           timestamp: new Date().toISOString(),
           completed: false
@@ -93,7 +117,7 @@ export default function Home() {
         
         <div className="mb-4">
           <label htmlFor="pin" className="block text-sm font-medium text-gray-700 mb-1">
-            Kullanıcı adınızı/PIN kodunuzu buraya girin: 
+            Kullanıcı adınızı buraya girin: 
           </label>
           <input
             type="text"
@@ -101,7 +125,7 @@ export default function Home() {
             value={pin}
             onChange={handlePinChange}
             className="w-full p-2 border border-gray-300 rounded-md"
-            placeholder="XXXX"
+            placeholder=""
           />
         </div>
         
@@ -132,7 +156,7 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Görev Tamamlandı</h3>
               <p className="text-gray-600 mb-6">
-                Bu PIN kodu ile görev zaten tamamlanmış. Teşekkür ederiz!
+                Bu kullanıcı adı ile görev zaten tamamlanmış. Teşekkür ederiz!
               </p>
               <p>Tamamlanma Tarihi: {formattedCompletionDate}</p>
               <button

@@ -85,8 +85,9 @@ export default function Admin() {
   }, [sessions, filterDate, searchPin]);
 
   const handleSessionClick = (sessionId) => {
-    // Doğrudan router.push ile yönlendir
-    router.push(`/admin_panel/${sessionId}`);
+    // Oturum ID'sini URL için encode et
+    const encodedSessionId = encodeURIComponent(sessionId);
+    router.push(`/admin_panel/${encodedSessionId}`);
   };
 
   const handleBackToSessions = () => {

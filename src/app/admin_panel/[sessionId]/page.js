@@ -32,23 +32,33 @@ export default function SessionDetails() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // URL'den gelen ID'yi decode et
+        const decodedSessionId = decodeURIComponent(sessionId);
+        console.log("Fetching session with ID:", decodedSessionId);
+        
         // Oturum bilgilerini al
-        const sessionDoc = await getDoc(doc(db, "sessions", sessionId));
+        const sessionDoc = await getDoc(doc(db, "sessions", decodedSessionId));
+        
         if (!sessionDoc.exists()) {
-          setError("Oturum bulunamadı");
+          console.error("Session document not found:", decodedSessionId);
+          setError("Oturum bulunamadı. ID: " + decodedSessionId);
           setLoading(false);
           return;
         }
         
+        const sessionDataFromDB = sessionDoc.data();
+        console.log("Session data:", sessionDataFromDB);
+        
         setSessionData({
           id: sessionDoc.id,
-          ...sessionDoc.data(),
-          formattedDate: new Date(sessionDoc.data().timestamp).toLocaleString('tr-TR')
+          ...sessionDataFromDB,
+          formattedDate: new Date(sessionDataFromDB.timestamp).toLocaleString('tr-TR')
         });
         
         // Deneme sonuçlarını al
-        const trialsSnapshot = await getDocs(collection(db, "sessions", sessionId, "trials"));
+        const trialsSnapshot = await getDocs(collection(db, "sessions", decodedSessionId, "trials"));
         const trialsData = [];
+        
         trialsSnapshot.forEach((doc) => {
           trialsData.push(doc.data());
         });
@@ -62,7 +72,7 @@ export default function SessionDetails() {
         setLoading(false);
       } catch (err) {
         console.error("Error fetching data:", err);
-        setError("Veriler yüklenirken bir hata oluştu");
+        setError("Veriler yüklenirken bir hata oluştu: " + err.message);
         setLoading(false);
       }
     };

@@ -2,10 +2,16 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { wordPairs } from '../data/sample_data';
 
-// Alıştırma için nötr kelimeler
-// const practiceWords = ["telefon", "bilgisayar", "çanta", "gözlük", "saat", "kalem", "defter", "bardak"];
+// Alıştırma için sabit kelime çiftleri
+const practiceWordPairs = [
+  { neutralWord: "MAVİ", neutralWord2: "KASA" },
+  { neutralWord: "HAMSİ", neutralWord2: "ARMUT" },
+  { neutralWord: "DOMATES", neutralWord2: "OYUNCAK" },
+  { neutralWord: "BALONCUK", neutralWord2: "ASTRONOT" },
+  { neutralWord: "OYUN PARKI", neutralWord2: "RÜZGARGÜLÜ" },
+  { neutralWord: "KÜÇÜK TİLKİ", neutralWord2: "BEYAZ PERDE" }
+];
 
 export default function Practice() {
   const router = useRouter();
@@ -19,17 +25,8 @@ export default function Practice() {
   
   // Yeni alıştırma denemesi oluştur
   const createTrial = useCallback(() => {
-    // Rastgele bir kelime çifti seçelim
-    const randomPairIndex = Math.floor(Math.random() * wordPairs.length);
-    const selectedPair = wordPairs[randomPairIndex];
-    
-    // İkinci bir nötr kelime için farklı bir kelime çifti seçelim
-    let secondPairIndex;
-    do {
-      secondPairIndex = Math.floor(Math.random() * wordPairs.length);
-    } while (secondPairIndex === randomPairIndex);
-    
-    const secondNeutralWord = wordPairs[secondPairIndex].neutralWord;
+    // Sabit kelime çiftlerini kullan
+    const { neutralWord, neutralWord2 } = practiceWordPairs[currentTrial];
     
     // Tehdit kelimesinin konumu (üst: 0, alt: 1)
     const threatPosition = Math.random() < 0.5 ? 0 : 1;
@@ -42,15 +39,15 @@ export default function Practice() {
     const probeDirection = Math.random() < 0.5 ? 0 : 1;
     
     return {
-      neutralWord: selectedPair.neutralWord,
-      neutralWord2: secondNeutralWord,
+      neutralWord,
+      neutralWord2,
       threatPosition,
       probePosition,
       probeFollowsThreat,
       probeDirection,
       startTime: null
     };
-  }, []);
+  }, [currentTrial]);
   
   // Alıştırmayı başlat
   const startPractice = () => {
