@@ -105,38 +105,120 @@ export default function DotProbeTask() {
     
     // Deneme numarası (0-299)
     const trialNum = currentTrial;
+
+    // Tamamlanan denemeleri kontrol et
+    const completedThreatPositions = completedTrials.map(trial => trial.threatPosition);
+    const completedProbePositions = completedTrials.map(trial => trial.probePosition);
+    const completedProbeDirections = completedTrials.map(trial => trial.probeDirection);
     
-    // Dengelenmiş koşullar için hesaplamalar
-    // Her koşul için toplam 300 denemede tam olarak 150 kez oluşmalı
+    // Son 3 denemenin konumlarını ve yönlerini kontrol et
+    const lastThreeProbePositions = completedProbePositions.slice(-3);
+    const lastThreeThreatPositions = completedThreatPositions.slice(-3);
+    const lastThreeProbeDirections = completedProbeDirections.slice(-3);
     
-    // 1. Tehdit kelimesinin konumu (0: üst, 1: alt)
-    // İlk 150 denemede 75 üst, 75 alt; son 150 denemede 75 üst, 75 alt
-    const halfSize = Math.floor(maxTrials / 2);
-    const quarterSize = Math.floor(maxTrials / 4);
+    // Üst ve alt konumların sayısını hesapla
+    const threatUpCount = completedThreatPositions.filter(pos => pos === 0).length;
+    const threatDownCount = completedThreatPositions.filter(pos => pos === 1).length;
+    const probeUpCount = completedProbePositions.filter(pos => pos === 0).length;
+    const probeDownCount = completedProbePositions.filter(pos => pos === 1).length;
     
+    // Sol ve sağ yönlerin sayısını hesapla
+    const probeLeftCount = completedProbeDirections.filter(dir => dir === 0).length;
+    const probeRightCount = completedProbeDirections.filter(dir => dir === 1).length;
+    
+    // Tehdit kelimesinin konumunu belirle (0: üst, 1: alt)
     let threatPosition;
-    if (trialNum < quarterSize) {
-      // İlk çeyrek: üst
-      threatPosition = 0;
-    } else if (trialNum < halfSize) {
-      // İkinci çeyrek: alt
-      threatPosition = 1;
-    } else if (trialNum < halfSize + quarterSize) {
-      // Üçüncü çeyrek: üst
-      threatPosition = 0;
+    if (trialNum === maxTrials - 1) {
+      // Son denemede, hangi konum daha az kullanıldıysa onu seç
+      threatPosition = threatUpCount <= threatDownCount ? 0 : 1;
     } else {
-      // Son çeyrek: alt
-      threatPosition = 1;
+      // Rastgele seç, ancak dengeli dağılımı koru
+      const remainingTrials = maxTrials - trialNum;
+      const targetThreatUp = Math.floor(maxTrials / 2);
+      const targetThreatDown = Math.floor(maxTrials / 2);
+      
+      // Son 3 denemede aynı konumun tekrarını engelle
+      const lastThreeSameThreat = lastThreeThreatPositions.every(pos => pos === lastThreeThreatPositions[0]);
+      
+      if (threatUpCount >= targetThreatUp) {
+        threatPosition = 1; // Üst konum hedefine ulaştıysa alt konumu seç
+      } else if (threatDownCount >= targetThreatDown) {
+        threatPosition = 0; // Alt konum hedefine ulaştıysa üst konumu seç
+      } else if (lastThreeSameThreat && lastThreeThreatPositions.length === 3) {
+        // Son 3 denemede aynı konum varsa, diğer konumu seç
+        threatPosition = lastThreeThreatPositions[0] === 0 ? 1 : 0;
+      } else {
+        // Her iki konum da hedefe ulaşmadıysa ve son 3 denemede tekrar yoksa rastgele seç
+        // Ancak rastgele seçimde mevcut dağılımı da dikkate al
+        const upProbability = (targetThreatUp - threatUpCount) / remainingTrials;
+        threatPosition = Math.random() < upProbability ? 0 : 1;
+      }
     }
     
-    // 2. Probe'un konumu (tehdit kelimesinin konumunda mı değil mi)
-    // Her tehdit konumu için yarısında probe tehdit kelimesinin konumunda olmalı
-    const probeFollowsThreat = (trialNum % 2 === 0);
-    const probePosition = probeFollowsThreat ? threatPosition : (threatPosition === 0 ? 1 : 0);
+    // Probe'un konumunu belirle (tehdit kelimesinin konumunda mı değil mi)
+    let probePosition;
+    if (trialNum === maxTrials - 1) {
+      // Son denemede, hangi konum daha az kullanıldıysa onu seç
+      probePosition = probeUpCount <= probeDownCount ? 0 : 1;
+    } else {
+      // Rastgele seç, ancak dengeli dağılımı koru
+      const remainingTrials = maxTrials - trialNum;
+      const targetProbeUp = Math.floor(maxTrials / 2);
+      const targetProbeDown = Math.floor(maxTrials / 2);
+      
+      // Son 3 denemede aynı konumun tekrarını engelle
+      const lastThreeSameProbe = lastThreeProbePositions.every(pos => pos === lastThreeProbePositions[0]);
+      
+      if (probeUpCount >= targetProbeUp) {
+        probePosition = 1; // Üst konum hedefine ulaştıysa alt konumu seç
+      } else if (probeDownCount >= targetProbeDown) {
+        probePosition = 0; // Alt konum hedefine ulaştıysa üst konumu seç
+      } else if (lastThreeSameProbe && lastThreeProbePositions.length === 3) {
+        // Son 3 denemede aynı konum varsa, diğer konumu seç
+        probePosition = lastThreeProbePositions[0] === 0 ? 1 : 0;
+      } else {
+        // Her iki konum da hedefe ulaşmadıysa ve son 3 denemede tekrar yoksa rastgele seç
+        // Ancak rastgele seçimde mevcut dağılımı da dikkate al
+        const upProbability = (targetProbeUp - probeUpCount) / remainingTrials;
+        probePosition = Math.random() < upProbability ? 0 : 1;
+      }
+    }
     
-    // 3. Probe'un yönü (0: sol, 1: sağ)
-    // Her probe konumu için yarısında sol, yarısında sağ
-    const probeDirection = (Math.floor(trialNum / 4) % 2 === 0) ? 0 : 1;
+    // Probe'un yönünü belirle (0: sol, 1: sağ)
+    let probeDirection;
+    if (trialNum === maxTrials - 1) {
+      // Son denemede, hangi yön daha az kullanıldıysa onu seç
+      probeDirection = probeLeftCount <= probeRightCount ? 0 : 1;
+    } else {
+      // Son 3 denemede aynı yönün tekrarını kontrol et
+      const lastThreeSameDirection = lastThreeProbeDirections.every(dir => dir === lastThreeProbeDirections[0]);
+      
+      // Rastgele seç, ancak dengeli dağılımı koru
+      const remainingTrials = maxTrials - trialNum;
+      const targetLeft = Math.floor(maxTrials / 2);
+      const targetRight = Math.floor(maxTrials / 2);
+      
+      if (probeLeftCount >= targetLeft) {
+        probeDirection = 1; // Sol yön hedefine ulaştıysa sağ yönü seç
+      } else if (probeRightCount >= targetRight) {
+        probeDirection = 0; // Sağ yön hedefine ulaştıysa sol yönü seç
+      } else if (lastThreeSameDirection && lastThreeProbeDirections.length === 3) {
+        // Son 3 denemede aynı yön varsa, diğer yönü seç
+        probeDirection = lastThreeProbeDirections[0] === 0 ? 1 : 0;
+      } else {
+        // Her iki yön de hedefe ulaşmadıysa ve son 3 denemede tekrar yoksa rastgele seç
+        // Ancak rastgele seçimde mevcut dağılımı da dikkate al
+        const leftProbability = (targetLeft - probeLeftCount) / remainingTrials;
+        
+        // Eğer son 2 denemede aynı yön varsa, diğer yönün seçilme olasılığını artır
+        const lastTwoSameDirection = lastThreeProbeDirections.slice(-2).every(dir => dir === lastThreeProbeDirections[lastThreeProbeDirections.length - 1]);
+        const adjustedLeftProbability = lastTwoSameDirection && lastThreeProbeDirections.length >= 2
+          ? (lastThreeProbeDirections[lastThreeProbeDirections.length - 1] === 0 ? 0.7 : 0.3)
+          : leftProbability;
+        
+        probeDirection = Math.random() < adjustedLeftProbability ? 0 : 1;
+      }
+    }
     
     return {
       trialNumber: trialNum + 1,
@@ -146,10 +228,10 @@ export default function DotProbeTask() {
       threatPosition,
       probePosition,
       probeDirection,
-      probeFollowsThreat,
+      probeFollowsThreat: probePosition === threatPosition,
       startTime: null
     };
-  }, [currentTrial, maxTrials]);
+  }, [currentTrial, maxTrials, completedTrials]);
   
   // Deneme sonuçlarını kaydetme fonksiyonu
   const saveTrialResult = useCallback(async (trialData) => {

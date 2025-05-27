@@ -154,7 +154,7 @@ export const wordPairs = [
   { threatWord: "KAR-ZARAR", neutralWord: "SERİN" },
   { threatWord: "KAYBETMEK", neutralWord: "KİRAZ ÇİÇEĞİ RENGİ" },
   { threatWord: "KISITLAMA", neutralWord: "BALONCUK" },
-  { threatWord: "KRONOMERE", neutralWord: "HALI YIKAMA" },
+  { threatWord: "KRONOMETRE", neutralWord: "HALI YIKAMA" },
   { threatWord: "KÜTÜPHANE", neutralWord: "DENİZ MAYMUNU" },
   { threatWord: "PANİKLEME", neutralWord: "KAHVERENGİ" },
   { threatWord: "PES ETMEK", neutralWord: "DİREKSİYON" },
